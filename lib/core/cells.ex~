@@ -1,0 +1,19 @@
+defmodule Propagator.Cell do
+  use GenServer
+
+  ## Client API
+
+  #TODO
+
+  ## Server Callbacks
+
+  def init() do
+    neighbors = []
+    content = :nothing
+    whoiam = false
+    history = []
+    probe = false
+    {:ok, {neighbors, content, whoiam, history, probe}}
+  end
+
+  
