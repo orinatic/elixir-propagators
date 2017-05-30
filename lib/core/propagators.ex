@@ -1,14 +1,16 @@
 defmodule Propagator.Propagators do
   use GenServer
   alias Propagator.Cell
-
+  alias Propagator.Counter
+  
   ## Client API
 
   def function_to_propagator_constructor f do
     constructor = fn(cell_names) ->
       info = :erlang.fun_info(f)
       arity = info[:arity]
-      name = info[:name]
+      count = Counter.get_next(NameCounter, info[:name])
+      name = String.to_atom("__" <> Atom.to_string(info[:name]) <> Integer.to_string(count) <> "__")
       
       if length(cell_names) != (arity + 1) do
 	raise "number of cells do not match function arity"

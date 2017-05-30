@@ -1,18 +1,7 @@
 defmodule Propagators do
-  @moduledoc """
-  Documentation for Propagators.
-  """
+  use Application
 
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> Propagators.hello
-      :world
-
-  """
-  def hello do
-    :world
+  def start(_type, _args) do
+    Propagator.Supervisor.start_link
   end
 end
