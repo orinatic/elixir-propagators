@@ -5,7 +5,7 @@ defmodule Propagator.Cell do
 
   def contradiction?(content) do
     case content do
-      {:contradiction, _, _} -> true
+      {:contradiction, _} -> true
       _ -> false
     end
   end
@@ -18,6 +18,13 @@ defmodule Propagator.Cell do
     info
   end
   
+  def inspect_content(cell) do
+    case get_content(cell) do
+      {:content, info, informants} -> {:content, info, MapSet.to_list(informants)}
+      otherwise -> otherwise
+    end
+  end
+  
   ## Client API    
 
   def start_link(name) do
@@ -25,7 +32,12 @@ defmodule Propagator.Cell do
   end
   
   def add_content(cell, info, informants) do
-    GenServer.cast(cell, {:add_content, info, informants})
+    send_informants = case informants do
+			%MapSet{} -> informants
+			[_] -> MapSet.new(informants)
+			_ -> MapSet.new([informants])
+		      end
+      GenServer.cast(cell, {:add_content, info, send_informants})
   end
 
   def add_contradiction(cell, contradiction) do
@@ -39,7 +51,13 @@ defmodule Propagator.Cell do
   def get_content(cell) do
     GenServer.call(cell, {:content})
   end
-
+  
+  defp alert_outputs() do
+    IO.puts "alerting outputs"
+    this = self()
+    spawn_link fn -> GenServer.cast(this, {:notify_outputs}) end
+  end
+  
   def ensure_cell(cell) do
     case start_link(cell) do
       {:ok, _pid} -> cell
@@ -73,6 +91,13 @@ defmodule Propagator.Cell do
       {:reply, :ok, {MapSet.put(outputs, new_output), content}}
     end
   end
+
+  def handle_cast({:notify_outputs}, {outputs, content}) do
+    IO.puts "spawning func to alert cells"
+    spawn_link fn -> Prop.alert_cells(outputs) end
+    {:noreply, {outputs, content}}
+  end
+    
   
   # Needs to handle merging, once I add intervals
   # Handle_cast does not wait for a return
@@ -82,30 +107,32 @@ defmodule Propagator.Cell do
 	if(MapSet.subset?(new_informants, informants)) do
 	  {:noreply, state}
 	else
-	  Prop.alert_cells(outputs)
+	  alert_outputs()
 	  {:noreply, {outputs, {:content, info, MapSet.union(new_informants, informants)}}}
 	end
       {:content, info, informants} ->
-	{:noreply, outputs, {:contradiction, [{info, informants}, {new_info, new_informants}]}}
+	{:noreply, {outputs, {:contradiction, [{info, informants}, {new_info, new_informants}]}}}
       :nothing ->
-	Prop.alert_cells(outputs)
+	IO.puts "coming up from nothing. Outputs are #{inspect outputs}"
+	alert_outputs()
         {:noreply, {outputs, {:content, new_info, new_informants}}}
       {:contradiction, _contradictions} ->
 	{:noreply, state}
     end
   end
   
-  def handle_cast({:add_contradiction, {c1, c2}}, {outputs, content} = state) do  
+  def handle_cast({:add_contradiction, {:contradiction, new_cs}}, {outputs, content} = state) do  
     case content do
       {:contradiction, cs} ->
-	unless(Enum.member?(cs, {c1, c2}) or Enum.member?(cs, {c2, c1})) do
-	  Prop.alert_cells(outputs)
-	  {:noreply, {outputs, {:contradiction, [{c1, c2}| cs]}}}
+	if(length(Enum.uniq(cs ++ new_cs)) != length(cs)) do
+	  alert_outputs()
+	  {:noreply, {outputs, {:contradiction, Enum.uniq(cs ++ new_cs)}}}
 	else
 	  {:noreply, state}
 	end
       _ ->
-	{:noreply, state}
+	alert_outputs()
+	{:noreply, {outputs, {:contradiction, new_cs}}}
     end
   end
 

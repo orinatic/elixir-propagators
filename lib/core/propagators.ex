@@ -45,9 +45,13 @@ defmodule Propagator.Propagators do
 	  Cell.add_contradiction(output, contradiction) end)
         {:reply, :ok, state}
       Enum.member?(input_contents, :nothing) ->
+	IO.puts "not calculating because at least one input is :nothing. Inputs: #{inspect input_contents}"
 	{:reply, :ok, state}
       true ->
-	informants = Enum.map(input_contents, &Cell.get_informant/1)
+	IO.puts "calculating propagator #{inspect f_info[:name]} with values #{inspect input_contents}"
+	informants = input_contents
+	  |> Enum.map(&Cell.get_informant/1)
+	  |> Enum.reduce(fn(elt, acc) -> MapSet.union(elt, acc) end)
 	infos = Enum.map(input_contents, &Cell.get_info/1)
 	value = apply(f_info[:module], f_info[:name], infos)
 	Cell.add_content(output, value, informants)
